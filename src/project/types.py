@@ -23,7 +23,7 @@ def _from_rel(path_str: str, root: Path) -> Path:
 @dataclass
 class Sam2Settings:
     config_name: str = "sam2_hiera_t.yaml"
-    weights_path: str = "app/sam2_configs/sam2_hiera_tiny.pt"
+    weights_path: str = "src/sam2_configs/sam2_hiera_tiny.pt"
     auto_run: bool = True
 
     def to_dict(self) -> Dict[str, Any]:

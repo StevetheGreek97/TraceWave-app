@@ -52,16 +52,33 @@ class Sam2Service:
         if dev == "cuda" and not torch.cuda.is_available():
             dev = "cpu"
         try:
-            model_path = (
-                get_resource_path(self.weights_path)
-                if not os.path.isabs(self.weights_path)
-                else self.weights_path
-            )
+            model_path = self._resolve_weights_path(self.weights_path)
             sam2_model = build_sam2(self.config_name, model_path, device=dev)
             self.predictor = SAM2ImagePredictor(sam2_model)
             self.available = True
         except Exception as e:
             self.error = str(e)
+            self.available = False
+
+    @staticmethod
+    def _resolve_weights_path(weights_path: str) -> str:
+        if os.path.isabs(weights_path):
+            return weights_path
+        base_path = get_resource_path("")
+        candidate = os.path.join(base_path, weights_path)
+        if os.path.exists(candidate):
+            return candidate
+        # Common legacy path mapping: app/ -> src/
+        if weights_path.startswith("app/"):
+            alt = os.path.join(base_path, weights_path.replace("app/", "src/", 1))
+            if os.path.exists(alt):
+                return alt
+        # Fallback to src/sam2_configs/<filename>
+        fname = os.path.basename(weights_path)
+        alt2 = os.path.join(base_path, "src", "sam2_configs", fname)
+        if os.path.exists(alt2):
+            return alt2
+        return candidate
 
     @staticmethod
     def _mask_to_polygon(mask: np.ndarray) -> List[Tuple[int, int]]:

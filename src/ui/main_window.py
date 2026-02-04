@@ -188,16 +188,20 @@ class MainWindow(QMainWindow):
         self.act_help.triggered.connect(self.show_help)
 
     def _wire_shortcuts(self):
-        QShortcut(QKeySequence(Qt.Key.Key_Right), self, activated=lambda: self.load_frame(self.current_index() + 1))
-        QShortcut(QKeySequence(Qt.Key.Key_Left), self, activated=lambda: self.load_frame(self.current_index() - 1))
-        QShortcut(QKeySequence(Qt.Key.Key_Home), self, activated=lambda: self.load_frame(0))
-        QShortcut(
-            QKeySequence(Qt.Key.Key_End),
-            self,
-            activated=lambda: self.load_frame(self.current_frame_count() - 1),
-        )
-        QShortcut(QKeySequence(Qt.Key.Key_E), self, activated=self.run_sam2)
-        QShortcut(QKeySequence(Qt.Key.Key_D), self, activated=self.clear_mask_for_current)
+        self._shortcuts = []
+
+        def add_shortcut(seq: str, handler):
+            sc = QShortcut(QKeySequence(seq), self)
+            sc.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            sc.activated.connect(handler)
+            self._shortcuts.append(sc)
+
+        add_shortcut("Right", lambda: self.load_frame(self.current_index() + 1))
+        add_shortcut("Left", lambda: self.load_frame(self.current_index() - 1))
+        add_shortcut("Home", lambda: self.load_frame(0))
+        add_shortcut("End", lambda: self.load_frame(self.current_frame_count() - 1))
+        add_shortcut("E", self.run_sam2)
+        add_shortcut("D", self.clear_mask_for_current)
 
     # ---------------- Project lifecycle ----------------
     def action_new_project(self):
@@ -588,36 +592,60 @@ class MainWindow(QMainWindow):
         self.mark_dirty()
 
     def clear_mask_for_current(self):
+        print("DEBUG clear_mask_for_current: invoked")
         model = self.current_model()
+        if not model:
+            print("DEBUG clear_mask_for_current: no current model")
+            return
         if not model:
             return
         oid = self.current_obj_id()
+        print(f"DEBUG clear_mask_for_current: obj_id={oid}, frame_idx={model.index}")
         model.set_polygon(oid, None)
         self.view.remove_polygon_for_obj(oid)
         self.refresh_list_item(model.index)
         self.mark_dirty()
 
     def run_sam2(self):
+        print("DEBUG run_sam2: invoked")
         model = self.current_model()
-        if not model or not self.sam2 or not self.sam2.available:
+        if not model:
+            print("DEBUG run_sam2: no current model")
+            return
+        if not self.sam2:
+            print("DEBUG run_sam2: sam2 service not initialized")
+            return
+        if not self.sam2.available:
+            print(f"DEBUG run_sam2: sam2 not available: {self.sam2.error}")
             return
         if cv2 is None:
             self.status.showMessage("OpenCV not available; SAM2 disabled.")
+            print("DEBUG run_sam2: cv2 is None")
             return
         fidx = model.index
         oid = self.current_obj_id()
         obj = model.get_object(fidx, oid)
         if not obj:
+            print(f"DEBUG run_sam2: no object for frame={fidx}, obj_id={oid}")
             return
         if not obj.points and not (obj.box and obj.box[2] > 0 and obj.box[3] > 0):
+            print(f"DEBUG run_sam2: no prompts for frame={fidx}, obj_id={oid}")
             return
 
         img_path = model.frames[fidx]
         img_bgr = cv2.imread(str(img_path))
         if img_bgr is None:
+            print(f"DEBUG run_sam2: cv2.imread failed for {img_path}")
             return
         img = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
+        print(
+            "DEBUG run_sam2: running predictor",
+            f"points={len(obj.points)}",
+            f"labels={len(obj.labels)}",
+            f"box={obj.box}",
+            f"img={img.shape}",
+        )
         poly = self.sam2.generate_polygon(
             img,
             points_xy=[(int(x), int(y)) for x, y in obj.points],
@@ -625,7 +653,9 @@ class MainWindow(QMainWindow):
             box_xywh=list(obj.box) if obj.box else None,
         )
         if not poly:
+            print("DEBUG run_sam2: predictor returned empty polygon")
             return
+        print(f"DEBUG run_sam2: polygon length={len(poly)}")
         model.set_polygon(oid, poly)
         self.view.add_polygon_visual(poly, obj_id=oid)
         self.refresh_list_item(fidx)
