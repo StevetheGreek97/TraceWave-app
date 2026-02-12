@@ -53,6 +53,29 @@ Launch:
 python -m src.tracewave
 ```
 
+**Conda Install (Windows/macOS/Linux)**
+If you prefer Anaconda/Miniconda, use a dedicated env and install with pip:
+
+```bash
+conda create -n tracewave python=3.10 -y
+conda activate tracewave
+conda install -c conda-forge ffmpeg -y
+python -m pip install --upgrade pip
+python -m pip install -e ".[sam2,yaml]"
+```
+
+Download SAM2 weights (only if you installed the `sam2` extra):
+
+```bash
+python -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/facebook/sam2-hiera-tiny/resolve/main/sam2_hiera_tiny.pt','src/sam2_configs/sam2_hiera_tiny.pt')"
+```
+
+Run:
+
+```bash
+python -m src.tracewave
+```
+
 **What Gets Installed**
 - Core: `PyQt6`, `numpy`
 - Extras: `torch`, `opencv-python`, `sam2`, `pyyaml`
