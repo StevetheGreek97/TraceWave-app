@@ -21,6 +21,43 @@ if "%PYTHON%"=="" (
   exit /b 1
 )
 
+rem ---- Ensure FFmpeg / FFprobe are available (required for video import) ----
+where ffmpeg >nul 2>nul
+set "HAS_FFMPEG=%errorlevel%"
+where ffprobe >nul 2>nul
+set "HAS_FFPROBE=%errorlevel%"
+
+if not "%HAS_FFMPEG%"=="0" (
+  echo FFmpeg not found. Attempting to install...
+  where winget >nul 2>nul
+  if "%errorlevel%"=="0" (
+    winget install --id Gyan.FFmpeg -e
+  ) else (
+    where choco >nul 2>nul
+    if "%errorlevel%"=="0" (
+      choco install -y ffmpeg
+    ) else (
+      echo Error: FFmpeg not found and no supported installer ^(winget/choco^) is available.
+      echo Please install FFmpeg manually and ensure ffmpeg/ffprobe are on PATH.
+      exit /b 1
+    )
+  )
+)
+
+where ffmpeg >nul 2>nul
+if not "%errorlevel%"=="0" (
+  echo Error: FFmpeg install failed or not on PATH.
+  echo Please install FFmpeg manually and ensure ffmpeg/ffprobe are on PATH.
+  exit /b 1
+)
+
+where ffprobe >nul 2>nul
+if not "%errorlevel%"=="0" (
+  echo Error: FFprobe not found on PATH.
+  echo Please ensure FFmpeg is installed correctly and ffprobe is on PATH.
+  exit /b 1
+)
+
 if not exist "%VENV%\" (
   %PYTHON% -m venv "%VENV%"
   if errorlevel 1 exit /b 1
