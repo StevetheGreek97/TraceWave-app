@@ -22,31 +22,55 @@ if "%PYTHON%"=="" (
 )
 
 rem ---- Ensure FFmpeg / FFprobe are available (required for video import) ----
+set "FFMPEG_DIR=%FFMPEG_DIR%"
+if "%FFMPEG_DIR%"=="" set "FFMPEG_DIR=%~dp0.ffmpeg"
+set "FFMPEG_URL=%FFMPEG_URL%"
+if "%FFMPEG_URL%"=="" set "FFMPEG_URL=https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+
 where ffmpeg >nul 2>nul
 set "HAS_FFMPEG=%errorlevel%"
 where ffprobe >nul 2>nul
 set "HAS_FFPROBE=%errorlevel%"
 
 if not "%HAS_FFMPEG%"=="0" (
-  echo FFmpeg not found. Attempting to install...
-  where winget >nul 2>nul
-  if "%errorlevel%"=="0" (
-    winget install --id Gyan.FFmpeg -e
-  ) else (
-    where choco >nul 2>nul
-    if "%errorlevel%"=="0" (
-      choco install -y ffmpeg
-    ) else (
-      echo Error: FFmpeg not found and no supported installer ^(winget/choco^) is available.
+  rem Try local portable FFmpeg first
+  set "FFMPEG_BIN="
+  if exist "%FFMPEG_DIR%\bin\ffmpeg.exe" set "FFMPEG_BIN=%FFMPEG_DIR%\bin"
+  if "%FFMPEG_BIN%"=="" (
+    for /r "%FFMPEG_DIR%" %%F in (ffmpeg.exe) do if not defined FFMPEG_BIN set "FFMPEG_BIN=%%~dpF"
+  )
+  if "%FFMPEG_BIN%"=="" (
+    echo FFmpeg not found. Downloading portable build...
+    if not exist "%FFMPEG_DIR%" mkdir "%FFMPEG_DIR%"
+    set "FFMPEG_ZIP=%FFMPEG_DIR%\ffmpeg.zip"
+    powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $u='%FFMPEG_URL%'; $o='%FFMPEG_ZIP%'; Invoke-WebRequest -Uri $u -OutFile $o"
+    if errorlevel 1 (
+      echo Error: Failed to download FFmpeg.
       echo Please install FFmpeg manually and ensure ffmpeg/ffprobe are on PATH.
       exit /b 1
     )
+    powershell -NoProfile -Command "$ErrorActionPreference='Stop'; Expand-Archive -Force -Path '%FFMPEG_ZIP%' -DestinationPath '%FFMPEG_DIR%'"
+    if errorlevel 1 (
+      echo Error: Failed to extract FFmpeg.
+      exit /b 1
+    )
+    del /q "%FFMPEG_ZIP%" >nul 2>nul
+    for /r "%FFMPEG_DIR%" %%F in (ffmpeg.exe) do if not defined FFMPEG_BIN set "FFMPEG_BIN=%%~dpF"
   )
+  if "%FFMPEG_BIN%"=="" (
+    echo Error: ffmpeg.exe not found after extraction.
+    exit /b 1
+  )
+  if not exist "%FFMPEG_BIN%\ffprobe.exe" (
+    echo Error: ffprobe.exe not found after extraction.
+    exit /b 1
+  )
+  set "PATH=%FFMPEG_BIN%;%PATH%"
 )
 
 where ffmpeg >nul 2>nul
 if not "%errorlevel%"=="0" (
-  echo Error: FFmpeg install failed or not on PATH.
+  echo Error: FFmpeg not found on PATH.
   echo Please install FFmpeg manually and ensure ffmpeg/ffprobe are on PATH.
   exit /b 1
 )
